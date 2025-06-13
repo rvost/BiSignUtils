@@ -16,4 +16,5 @@ let main argv =
         inputs ctx
         setHandler showHelp
         addCommand generateCmd
+        addCommand signCmd
     }
