@@ -17,4 +17,5 @@ let main argv =
         setHandler showHelp
         addCommand generateCmd
         addCommand signCmd
+        addCommand checkCmd
     }

@@ -51,3 +51,44 @@ let signCmd =
         inputs(keyFile, pbos)
         setHandler handler
     }
+
+let checkCmd =
+    let handler (keyFile: FileInfo, pbos: FileInfo[]) =
+        if keyFile.Exists then 
+            use keyStream = keyFile.OpenRead()
+            let key = BiPublicKey.Read(keyStream)
+            let loadSignature (fInfo:FileInfo) = 
+                if fInfo.Exists then
+                    use input = fInfo.OpenRead()
+                    let sign = BiSign.Read(input)
+                    Option.Some sign
+                else
+                    Option.None
+            let pbos =
+                pbos
+                |> Seq.filter (fun f -> f.Exists)
+                |> Seq.map (fun f -> f, SigningUtils.GetSignatureFile(key.Name, f))
+                |> Seq.map (fun (pboFile, signFile) -> new PBO(pboFile.FullName, false), loadSignature signFile)
+
+            for pbo, maybeSign in pbos do
+                match maybeSign with
+                | Some(signature) -> 
+                    if Signing.Verify(key, signature, pbo) then
+                        printfn $"{pbo.FileName} signature verified sucessfully"
+                    else 
+                        printfn $"{pbo.FileName} signature is wrong"
+                | None -> printfn $"{pbo.FileName} is not signed with the authority of ${key.Name}.bikey"
+                pbo.Dispose()
+            0
+        else 
+            printfn $"Key {keyFile.FullName} does not exist"
+            -1
+
+    let keyFile = Input.Argument<FileInfo>("key", "The path to public key file")
+    let pbos = Input.Argument<FileInfo[]>("pbo", "The path to PBOs")
+
+    command "check" {
+        description "Check PBO signatures"
+        inputs(keyFile, pbos)
+        setHandler handler
+    }
