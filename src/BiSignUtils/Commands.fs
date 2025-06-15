@@ -1,5 +1,6 @@
 ﻿module Commands
 open System.IO
+open System.Collections.Generic
 open FSharp.SystemCommandLine
 open BIS.PBO
 open BIS.Signatures
@@ -90,5 +91,48 @@ let checkCmd =
     command "check" {
         description "Check PBO signatures"
         inputs(keyFile, pbos)
+        setHandler handler
+    }
+
+let checkAllCmd = 
+    let handler (keysDir: DirectoryInfo, addonDir: DirectoryInfo) =
+        let readKey (f:FileInfo) =
+            use input = f.OpenRead()
+            let key = BiPublicKey.Read(input)
+            key
+        let readSign (f:FileInfo) =
+            use input = f.OpenRead()
+            let sign = BiSign.Read(input)
+            sign
+        let readPbo (f:FileInfo) =
+            new PBO(f.FullName)
+        
+        let allowedKeys = 
+            keysDir.EnumerateFiles("*.bikey")
+            |> Seq.map readKey
+        let allowedKeys = HashSet(allowedKeys)
+
+        let pbos =
+            addonDir.EnumerateFiles("*.pbo")
+            |> Seq.map (fun f -> readPbo f, addonDir.EnumerateFiles($"{f.Name}.*.bisign")|> Seq.map readSign |> Seq.toArray)
+
+        for pbo, signs in pbos do
+            if signs.Length > 0 then
+                for sign in signs do
+                    if Signing.Verify(allowedKeys, sign, pbo) then
+                        printfn $"{pbo.FileName} signature {sign.Name}.bisign verified sucessfully"
+                    elif allowedKeys.Contains(sign.PublicKey) then
+                        printfn $"{pbo.FileName} signature {sign.Name}.bisign is wrong"
+                    else
+                        printfn $"Key not found for {sign.Name}.bisign"
+            else
+                printfn $"No signature found for {pbo.FileName}"
+
+    let  keysDir = Input.Argument<DirectoryInfo>("keys", "The public keys folder")
+    let  addonDir = Input.Argument<DirectoryInfo>("addon", "The folder to check for PBOs")
+
+    command "checkAll" {
+        description "Check the signatures of all the PBOs in the folder against the available keys."
+        inputs(keysDir, addonDir)
         setHandler handler
     }

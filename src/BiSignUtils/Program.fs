@@ -18,4 +18,5 @@ let main argv =
         addCommand generateCmd
         addCommand signCmd
         addCommand checkCmd
+        addCommand checkAllCmd
     }
