@@ -19,4 +19,5 @@ let main argv =
         addCommand signCmd
         addCommand checkCmd
         addCommand checkAllCmd
+        addCommand bisign2bikeyCmd
     }

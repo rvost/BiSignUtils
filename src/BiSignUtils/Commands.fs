@@ -136,3 +136,28 @@ let checkAllCmd =
         inputs(keysDir, addonDir)
         setHandler handler
     }
+
+let bisign2bikeyCmd =
+    let handler (signFiles: FileInfo[]) =
+        let readSign (f:FileInfo) =
+            use input = f.OpenRead()
+            let sign = BiSign.Read(input)
+            sign
+
+        let signatures = 
+            signFiles
+            |> Seq.filter (fun f -> f.Exists)
+            |> Seq.map readSign
+
+        for sign in signatures do
+            let key = sign.PublicKey
+            use output = File.Create($"{key.Name}.bikey")
+            key.Write(output)
+
+    let signFile = Input.Argument<FileInfo[]>("sign", "The path to signature file")
+
+    command "bisign2bikey" {
+        description "Generate .bikey from .bisign"
+        inputs(signFile)
+        setHandler(handler)
+    }
