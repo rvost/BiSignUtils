@@ -31,10 +31,11 @@ jobs:
         with:
           name: "artifacts-${{ matrix.os }}"
           path: |
-            ./publish/*.*
+            ./publish/*
             !./publish/*.pdb
             !./publish/*.dbg
   release:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
