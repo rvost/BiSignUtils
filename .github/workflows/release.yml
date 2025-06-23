@@ -1,0 +1,45 @@
+name: "Release"
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+          source-url: https://nuget.pkg.github.com/rvost/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Install native dependencies
+        if: ${{ matrix.os }} == 'ubuntu-24.04'
+        run: sudo apt-get install clang zlib1g-dev
+      - run: dotnet publish -c Release -o publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "artifacts-${{ matrix.os }}"
+          path: |
+            ./publish/*.*
+            !./publish/*.pdb
+            !./publish/*.dbg
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          draft: true
+          files: |
+            artifacts/*
