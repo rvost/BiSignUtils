@@ -31,7 +31,7 @@ Windows users may occasionally receive a warning from Windows Defender or other 
   ```
 - Check that all of the PBOs in the mod have valid signatures with respect to your server keys (assuming you are in the root of the server):
   ```
-  BiSignUtils checkAll ./keys @FooModpack
+  BiSignUtils checkAll ./keys ./@FooModpack
   ```
 - Assuming that your current working directory is the server's root folder, extract the .bikeys all installed addons:
   ```

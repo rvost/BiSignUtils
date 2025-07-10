@@ -99,9 +99,14 @@ let checkAllCmd =
             |> Seq.map readPublicKey
         let allowedKeys = HashSet(allowedKeys)
 
+        let findSignaturesForPbo (f: FileInfo) = 
+            f.Directory.EnumerateFiles($"{f.Name}.*.bisign")
+            |> Seq.map readSign 
+            |> Seq.toArray
+
         let pbos =
-            addonDir.EnumerateFiles("*.pbo")
-            |> Seq.map (fun f -> readPbo f, addonDir.EnumerateFiles($"{f.Name}.*.bisign")|> Seq.map readSign |> Seq.toArray)
+            addonDir.EnumerateFiles("*.pbo", SearchOption.AllDirectories)
+            |> Seq.map (fun f -> readPbo f, findSignaturesForPbo f)
 
         for pbo, signs in pbos do
             if signs.Length > 0 then
