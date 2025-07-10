@@ -2,15 +2,16 @@
 open System.IO
 open System.Collections.Generic
 open FSharp.SystemCommandLine
-open BIS.PBO
 open BIS.Signatures
 open BIS.Signatures.Utils
+open Utils
 
 let generateCmd =
     let handler (name: string, length: int) =
         let privateKey = BiPrivateKey.Generate(name, length)
         use output = File.Create($"{name}.biprivatekey")
         privateKey.Write(output)
+        
         let publicKey = privateKey.ToPublicKey()
         use output = File.Create($"{name}.bikey")
         publicKey.Write(output)
@@ -26,13 +27,12 @@ let generateCmd =
 
 let signCmd =
     let handler (keyFile: FileInfo, pbos: FileInfo[]) =
-        if keyFile.Exists then 
-            use keyStream = keyFile.OpenRead()
-            let key = BiPrivateKey.Read(keyStream)
+        if keyFile.Exists then
+            let key = readPrivateKey keyFile
             let signatures =
                 pbos
                 |> Seq.filter (fun f -> f.Exists)
-                |> Seq.map (fun f -> new PBO(f.FullName, false))
+                |> Seq.map readPbo
                 |> Seq.map (fun pbo -> Signing.Sign(key, BiSignVersion.V3, pbo), pbo)
             for signature, pbo in signatures do
                 use signStream = File.Create(SigningUtils.GetSignatureFileName(signature.Name, pbo.FileName))
@@ -56,12 +56,10 @@ let signCmd =
 let checkCmd =
     let handler (keyFile: FileInfo, pbos: FileInfo[]) =
         if keyFile.Exists then 
-            use keyStream = keyFile.OpenRead()
-            let key = BiPublicKey.Read(keyStream)
+            let key = readPublicKey keyFile
             let loadSignature (fInfo:FileInfo) = 
                 if fInfo.Exists then
-                    use input = fInfo.OpenRead()
-                    let sign = BiSign.Read(input)
+                    let sign = readSign fInfo
                     Option.Some sign
                 else
                     Option.None
@@ -69,7 +67,7 @@ let checkCmd =
                 pbos
                 |> Seq.filter (fun f -> f.Exists)
                 |> Seq.map (fun f -> f, SigningUtils.GetSignatureFile(key.Name, f))
-                |> Seq.map (fun (pboFile, signFile) -> new PBO(pboFile.FullName, false), loadSignature signFile)
+                |> Seq.map (fun (pboFile, signFile) -> readPbo pboFile, loadSignature signFile)
 
             for pbo, maybeSign in pbos do
                 match maybeSign with
@@ -96,20 +94,9 @@ let checkCmd =
 
 let checkAllCmd = 
     let handler (keysDir: DirectoryInfo, addonDir: DirectoryInfo) =
-        let readKey (f:FileInfo) =
-            use input = f.OpenRead()
-            let key = BiPublicKey.Read(input)
-            key
-        let readSign (f:FileInfo) =
-            use input = f.OpenRead()
-            let sign = BiSign.Read(input)
-            sign
-        let readPbo (f:FileInfo) =
-            new PBO(f.FullName)
-        
         let allowedKeys = 
             keysDir.EnumerateFiles("*.bikey")
-            |> Seq.map readKey
+            |> Seq.map readPublicKey
         let allowedKeys = HashSet(allowedKeys)
 
         let pbos =
@@ -139,11 +126,6 @@ let checkAllCmd =
 
 let bisign2bikeyCmd =
     let handler (signFiles: FileInfo[]) =
-        let readSign (f:FileInfo) =
-            use input = f.OpenRead()
-            let sign = BiSign.Read(input)
-            sign
-
         let signatures = 
             signFiles
             |> Seq.filter (fun f -> f.Exists)
