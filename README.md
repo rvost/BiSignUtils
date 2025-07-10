@@ -33,9 +33,9 @@ Windows users may occasionally receive a warning from Windows Defender or other 
   ```
   BiSignUtils checkAll ./keys @FooModpack
   ```
-- Extract the .bikey from the .bisign file:
+- Assuming that your current working directory is the server's root folder, extract the .bikeys all installed addons:
   ```
-  BiSignUtils bisign2bikey core.pbo.expansion.bisign
+  BiSignUtils bisign2bikey -d=. -o=keys
   ```
 
 You can also use the `--help` key to view all the available commands and options.

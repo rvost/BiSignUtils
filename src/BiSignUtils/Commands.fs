@@ -125,21 +125,38 @@ let checkAllCmd =
     }
 
 let bisign2bikeyCmd =
-    let handler (signFiles: FileInfo[]) =
+    let handler (signFiles: FileInfo[], searchDir: DirectoryInfo option, outputDir: DirectoryInfo) =
+        let searchFiles = 
+            searchDir
+            |> Option.map (fun dir -> dir.EnumerateFiles("*.bisign", SearchOption.AllDirectories))
+            |> Option.defaultWith (fun () -> Seq.empty)
+         
         let signatures = 
             signFiles
             |> Seq.filter (fun f -> f.Exists)
+            |> Seq.append searchFiles
             |> Seq.map readSign
 
-        for sign in signatures do
-            let key = sign.PublicKey
-            use output = File.Create($"{key.Name}.bikey")
+        let keys =
+            signatures
+            |> Seq.map (fun sign -> sign.PublicKey)
+            |> Seq.distinct
+
+        if not outputDir.Exists then
+            outputDir.Create()
+
+        for key in keys do
+            let fileName = Path.Combine(outputDir.FullName, $"{key.Name}.bikey")
+            use output = File.Create(fileName)
             key.Write(output)
 
     let signFile = Input.Argument<FileInfo[]>("sign", "The path to signature file")
+    let searchDir = Input.OptionMaybe<DirectoryInfo>(["-d"; "--dir"], "The folder for recursive signature search")
+    let outputDir = Input.Option<DirectoryInfo>(["-o"; "--output"], DirectoryInfo(Directory.GetCurrentDirectory()), 
+        "The folder for outputting extracted keys.")
 
     command "bisign2bikey" {
         description "Generate .bikey from .bisign"
-        inputs(signFile)
+        inputs(signFile, searchDir, outputDir)
         setHandler(handler)
     }
