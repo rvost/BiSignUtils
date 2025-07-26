@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-	  <PublishAot>true</PublishAot>
+    <PublishAot>true</PublishAot>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
@@ -15,8 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="BIS.Formats.Signatures" Version="1.1.0" />
-    <PackageReference Include="FSharp.SystemCommandLine" Version="1.0.0-beta4" />
-    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageReference Include="FSharp.SystemCommandLine" Version="2.0.0-beta5.8" />
   </ItemGroup>
 
 </Project>

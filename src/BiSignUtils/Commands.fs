@@ -2,6 +2,7 @@
 open System.IO
 open System.Collections.Generic
 open FSharp.SystemCommandLine
+open FSharp.SystemCommandLine.Input
 open BIS.Signatures
 open BIS.Signatures.Utils
 open Utils
@@ -16,80 +17,89 @@ let generateCmd =
         use output = File.Create($"{name}.bikey")
         publicKey.Write(output)
     
-    let name = Input.Argument<string>("name", "The name of the authority")
-    let length = Input.Option<int>(["-l"; "--length"], 1024, "The length of private key (in bits)")
+    let name = 
+        argument<string> "name"
+        |> desc "The name of the authority"
+    
+    let length = 
+        option<int> "--length"
+        |> alias "-l"
+        |> desc "The length of private key (in bits)"
+        |> def 1024
 
     command "generate" {
         description "Generate private key"
         inputs (name, length)
-        setHandler handler
+        setAction handler
     }
 
 let signCmd =
     let handler (keyFile: FileInfo, pbos: FileInfo[]) =
-        if keyFile.Exists then
-            let key = readPrivateKey keyFile
-            let signatures =
-                pbos
-                |> Seq.filter (fun f -> f.Exists)
-                |> Seq.map readPbo
-                |> Seq.map (fun pbo -> Signing.Sign(key, BiSignVersion.V3, pbo), pbo)
-            for signature, pbo in signatures do
-                use signStream = File.Create(SigningUtils.GetSignatureFileName(signature.Name, pbo.FileName))
-                signature.Write(signStream)
-                printfn $"{pbo.FileName} successfully signed"
-                pbo.Dispose()
-            0
-        else 
-            printfn $"Key {keyFile.FullName} does not exist"
-            -1
+        let key = readPrivateKey keyFile
+        let signatures =
+            pbos
+            |> Seq.filter (fun f -> f.Exists)
+            |> Seq.map readPbo
+            |> Seq.map (fun pbo -> Signing.Sign(key, BiSignVersion.V3, pbo), pbo)
+        for signature, pbo in signatures do
+            use signStream = File.Create(SigningUtils.GetSignatureFileName(signature.Name, pbo.FileName))
+            signature.Write(signStream)
+            printfn $"{pbo.FileName} successfully signed"
+            pbo.Dispose()
+        0
 
-    let keyFile = Input.Argument<FileInfo>("key", "The path to private key file")
-    let pbos = Input.Argument<FileInfo[]>("pbo", "The path to PBO to sign")
+    let keyFile =
+        argument "key"
+        |> desc "The path to private key file"
+        |> validateFileExists
+    let pbos =
+        argument<FileInfo[]> "pbo"
+        |> desc "The path to PBO to sign"
 
     command "sign" {
         description "Sign PBO files"
-        inputs(keyFile, pbos)
-        setHandler handler
+        inputs (keyFile, pbos)
+        setAction handler
     }
 
 let checkCmd =
     let handler (keyFile: FileInfo, pbos: FileInfo[]) =
-        if keyFile.Exists then 
-            let key = readPublicKey keyFile
-            let loadSignature (fInfo:FileInfo) = 
-                if fInfo.Exists then
-                    let sign = readSign fInfo
-                    Option.Some sign
-                else
-                    Option.None
-            let pbos =
-                pbos
-                |> Seq.filter (fun f -> f.Exists)
-                |> Seq.map (fun f -> f, SigningUtils.GetSignatureFile(key.Name, f))
-                |> Seq.map (fun (pboFile, signFile) -> readPbo pboFile, loadSignature signFile)
+        let key = readPublicKey keyFile
+        let loadSignature (fInfo:FileInfo) = 
+            if fInfo.Exists then
+                let sign = readSign fInfo
+                Option.Some sign
+            else
+                Option.None
+        let pbos =
+            pbos
+            |> Seq.filter (fun f -> f.Exists)
+            |> Seq.map (fun f -> f, SigningUtils.GetSignatureFile(key.Name, f))
+            |> Seq.map (fun (pboFile, signFile) -> readPbo pboFile, loadSignature signFile)
 
-            for pbo, maybeSign in pbos do
-                match maybeSign with
-                | Some(signature) -> 
-                    if Signing.Verify(key, signature, pbo) then
-                        printfn $"{pbo.FileName} signature verified sucessfully"
-                    else 
-                        printfn $"{pbo.FileName} signature is wrong"
-                | None -> printfn $"{pbo.FileName} is not signed with the authority of ${key.Name}.bikey"
-                pbo.Dispose()
-            0
-        else 
-            printfn $"Key {keyFile.FullName} does not exist"
-            -1
+        for pbo, maybeSign in pbos do
+            match maybeSign with
+            | Some(signature) -> 
+                if Signing.Verify(key, signature, pbo) then
+                    printfn $"{pbo.FileName} signature verified sucessfully"
+                else 
+                    printfn $"{pbo.FileName} signature is wrong"
+            | None -> printfn $"{pbo.FileName} is not signed with the authority of ${key.Name}.bikey"
+            pbo.Dispose()
+        0
 
-    let keyFile = Input.Argument<FileInfo>("key", "The path to public key file")
-    let pbos = Input.Argument<FileInfo[]>("pbo", "The path to PBOs")
+    let keyFile = 
+        argument "key"
+        |> desc "The path to public key file"
+        |> validateFileExists
+    let pbos =
+        argument<FileInfo[]> "pbo"
+        |> desc "The path to PBO to sign"
 
     command "check" {
         description "Check PBO signatures"
-        inputs(keyFile, pbos)
-        setHandler handler
+        inputs (keyFile, pbos)
+        setAction handler
     }
 
 let checkAllCmd = 
@@ -120,13 +130,19 @@ let checkAllCmd =
             else
                 printfn $"No signature found for {pbo.FileName}"
 
-    let  keysDir = Input.Argument<DirectoryInfo>("keys", "The public keys folder")
-    let  addonDir = Input.Argument<DirectoryInfo>("addon", "The folder to check for PBOs")
+    let  keysDir = 
+        argument "keys"
+        |> desc "The public keys folder"
+        |> validateDirectoryExists
+    let  addonDir = 
+        argument "addon"
+        |> desc "The folder to check for PBOs"
+        |> validateDirectoryExists
 
     command "checkAll" {
         description "Check the signatures of all the PBOs in the folder against the available keys."
-        inputs(keysDir, addonDir)
-        setHandler handler
+        inputs (keysDir, addonDir)
+        setAction handler
     }
 
 let bisign2bikeyCmd =
@@ -155,13 +171,21 @@ let bisign2bikeyCmd =
             use output = File.Create(fileName)
             key.Write(output)
 
-    let signFile = Input.Argument<FileInfo[]>("sign", "The path to signature file")
-    let searchDir = Input.OptionMaybe<DirectoryInfo>(["-d"; "--dir"], "The folder for recursive signature search")
-    let outputDir = Input.Option<DirectoryInfo>(["-o"; "--output"], DirectoryInfo(Directory.GetCurrentDirectory()), 
-        "The folder for outputting extracted keys.")
+    let signFile = 
+        argument<FileInfo[]> "sign"
+        |> desc "The path to signature file"
+    let searchDir = 
+        optionMaybe<DirectoryInfo> "--dir"
+        |> alias "-d"
+        |> desc "The folder for recursive signature search"
+    let outputDir = 
+        option "--output"
+        |> alias "-o"
+        |> desc "The folder for outputting extracted keys."
+        |> defaultValue (DirectoryInfo(Directory.GetCurrentDirectory()))
 
     command "bisign2bikey" {
         description "Generate .bikey from .bisign"
-        inputs(signFile, searchDir, outputDir)
-        setHandler(handler)
+        inputs (signFile, searchDir, outputDir)
+        setAction handler
     }
